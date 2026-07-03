@@ -52,7 +52,7 @@ CARLA 0.9.14 (Windows) ─RPC─ carla-ros-bridge (ROS2, WSL2) ══DDS══ [
 ### Part 2 — WSL2: carla-ros-bridge
 ```bash
 source /opt/ros/humble/setup.bash
-source ~/carla-ros-bridge/install/setup.bash
+source ~/Autosar_AP_SDC_Carla/carla-ros-bridge/install/setup.bash
 ros2 launch carla_ros_bridge carla_ros_bridge_with_example_ego_vehicle.launch.py \
   host:=<WINDOWS_HOST_IP> town:=Town03 \
   objects_definition_file:=<path>/av-stack/config/carla/objects.json
@@ -80,22 +80,24 @@ gateway's DDS side only; the internal SOME/IP traffic stays on the Jetson):
 ### Part 4 — Jetson Orin Nano: build runtime + stack (aarch64 / JetPack)
 1. **CycloneDDS** (gateway's DDS transport to CARLA):
    ```bash
-   cd ~/lwrcl && ./scripts/install_cyclonedds.sh && source ~/.bashrc
+   cd ~/Autosar_AP_SDC_Carla/lwrcl && ./scripts/install_cyclonedds.sh && source ~/Autosar_AP_SDC_Carla/.bashrc
    ```
 2. **vsomeip** (SOME/IP runtime for the internal `ara::com`):
    ```bash
-   cd ~/lwrcl && ./scripts/install_vsomeip.sh      # installs to /opt/vsomeip
+   cd ~/Autosar_AP_SDC_Carla/lwrcl && ./scripts/install_vsomeip.sh      # installs to /opt/vsomeip
    ```
 3. **AUTOSAR-AP runtime + codegen** — build Adaptive-AUTOSAR and install the runtime +
    `ara_com_codegen` tools to `/opt/autosar-ap` (adds `autosar-generate-comm-manifest`,
    `autosar-generate-proxy-skeleton` to PATH):
    ```bash
-   cd ~/Adaptive-AUTOSAR && cmake -DCMAKE_BUILD_TYPE=Release -S . -B build && cmake --build build
+   cd ~/Autosar_AP_SDC_Carla/Adaptive-AUTOSAR && cmake -DCMAKE_BUILD_TYPE=Release -S . -B build && cmake --build build
    # then install per the project's install step
-   ```
+   ```bash
+   cd ~/Autosar_AP_SDC_Carla/Autosar_AP_SDC_Carla/Adaptive-AUTOSAR
+   sudo ./scripts/build_and_install_autosar_ap.sh --prefix /opt/autosar-ap
 4. **lwrcl (CycloneDDS backend — for the gateway's ROS 2 side only)**:
    ```bash
-   cd ~/lwrcl
+   cd ~/Autosar_AP_SDC_Carla/lwrcl
    ./build_libraries.sh  cyclonedds install
    ./build_data_types.sh cyclonedds install   # ROS 2 msg types: sensor_msgs, nav_msgs, ...
    ./build_lwrcl.sh      cyclonedds install    # -> /opt/cyclonedds-libs
@@ -110,7 +112,7 @@ gateway's DDS side only; the internal SOME/IP traffic stays on the Jetson):
    `CarlaEgoVehicleControl` / `CarlaEgoVehicleStatus` (not in the stock ROS set).
 6. **Build av-stack**:
    ```bash
-   cd ~/av-stack && ./build_ap.sh adaptive-autosar
+   cd ~/Autosar_AP_SDC_Carla/av-stack && ./build_ap.sh adaptive-autosar
    ```
    Builds `localization_app perception_app planning_app control_app safe_stop_app
    carla_gateway`. The AAs use the hand-written manifests in `config/manifests/`
@@ -137,7 +139,7 @@ zenoh-bridge-ros2dds -d 0 -e tcp/<WSL_HOST_LAN_IP>:7447   # drop/match the -n /v
 Then start the stack:
 
 ```bash
-cd ~/av-stack        # or .../Autosar_AP_SDC_Carla/av-stack
+cd ~/Autosar_AP_SDC_Carla/av-stack        # or .../Autosar_AP_SDC_Carla/av-stack
 ./run_ap.sh
 ```
 
