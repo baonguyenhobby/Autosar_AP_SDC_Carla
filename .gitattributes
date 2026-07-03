@@ -1,0 +1,10 @@
+# Keep these byte-exact with LF endings on every platform.
+# Patches must stay LF or `git apply` can fail on Linux/the Jetson.
+*.patch  text eol=lf
+
+# Shell scripts must be LF to run on Linux / the Jetson.
+*.sh     text eol=lf
+
+# IDL / ARXML kept LF for cross-platform consistency.
+*.idl    text eol=lf
+*.arxml  text eol=lf
