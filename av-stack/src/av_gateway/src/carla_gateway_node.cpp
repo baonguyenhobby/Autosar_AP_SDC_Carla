@@ -1,15 +1,14 @@
 // av_gateway/carla_gateway_node.cpp
-// The ONE place rclcpp/lwrcl is used: the CARLA boundary. Bridges the carla-ros-bridge
-// ROS 2 topics to the internal ara::com SOA and back ("extending ara::com with rclcpp").
+// The ONE place rclcpp/lwrcl is used: the CARLA boundary. It is the ROS 2 <-> ara::com
+// bridge — CARLA ros-bridge topics come in as ROS 2 DDS (via lwrcl), and are offered to
+// the Adaptive Applications as ara::com SensorService events (SOME/IP). The AAs' control
+// command (ara::com ControlService) is converted back to a CARLA control topic.
 //
-//   CARLA (ROS 2 topics)  --rclcpp/lwrcl-->  SensorService   (ara::com, SOME/IP)
-//   ControlService (ara::com)  --rclcpp/lwrcl-->  /carla/ego_vehicle/vehicle_control_cmd
-//
-// Built ONLY with the lwrcl toolchain (AP backend); excluded from the host build.
-// lwrcl generated messages use method-style accessors, e.g. msg->data(); carla_msgs
-// must be generated into lwrcl as IDL.
+//   CARLA (ROS 2)  --lwrcl-->  SensorService   (ara::com / SOME/IP)  -->  AAs
+//   AAs  -->  ControlService (ara::com)  --lwrcl-->  /carla/<role>/vehicle_control_cmd
 #include <cmath>
 #include <memory>
+#include <string>
 
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/imu.hpp"
@@ -67,8 +66,8 @@ class CarlaGateway : public rclcpp::Node {
     ctrl_pub_ = create_publisher<carla_msgs::msg::CarlaEgoVehicleControl>(
         ns + "/vehicle_control_cmd", 10);
 
-    // ControlService (ara::com) -> CARLA control topic (rclcpp).
-    control_.command.Subscribe();
+    // ControlService (ara::com) -> CARLA control topic (lwrcl).
+    control_.command.Subscribe(1);
     control_.command.SetReceiveHandler([this] {
       control_.command.GetNewSamples(
           [this](ara::com::SamplePtr<av::services::ControlSample> c) { publishControl(*c); });

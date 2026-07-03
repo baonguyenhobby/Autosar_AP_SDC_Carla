@@ -16,7 +16,7 @@ class PerceptionApp {
         state_(services::VehicleStateServiceProxy::FindService(instance).front()),
         out_(instance), log_("perception") {
     out_.OfferService();
-    state_.state.Subscribe(); sensors_.lidar.Subscribe();
+    state_.state.Subscribe(1); sensors_.lidar.Subscribe(1);
     state_.state.SetReceiveHandler([this] {
       state_.state.GetNewSamples(
           [this](ara::com::SamplePtr<services::VehicleStateSample> s) { ego_ = *s; });

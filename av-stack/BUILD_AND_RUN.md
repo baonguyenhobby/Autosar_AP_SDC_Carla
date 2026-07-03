@@ -124,19 +124,35 @@ gateway's DDS side only; the internal SOME/IP traffic stays on the Jetson):
    its service link to the AAs. See `run_ap.sh` env.
 
 ### Part 5 — Run (machine mode Driving + DrivingFG Active)
+
+Prerequisite: CARLA + the CARLA side of the bridge are up (Parts 1–2), and on the Jetson
+the local **`zenoh-bridge-ros2dds`** is running — the Zenoh↔DDS half that republishes the
+CARLA topics onto local CycloneDDS domain 0 (Zenoh carries the LAN hop; DDS stays on
+loopback):
+
 ```bash
-cd ~/av-stack
-export ARA_COM_EVENT_BINDING=vsomeip                            # internal AAs + gateway service side
-export VSOMEIP_CONFIGURATION=$PWD/config/vsomeip-av.json
-export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp                    # gateway rclcpp side (match bridge)
-export ROS_DOMAIN_ID=0                                          # gateway rclcpp side (match bridge)
-export CYCLONEDDS_URI=file://$PWD/config/cyclonedds-peers.xml    # gateway ⇄ CARLA over LAN
+zenoh-bridge-ros2dds -d 0 -e tcp/<WSL_HOST_LAN_IP>:7447   # drop/match the -n /v1 namespace vs. the gateway topic names
+```
+
+Then start the stack:
+
+```bash
+cd ~/av-stack        # or .../Autosar_AP_SDC_Carla/av-stack
 ./run_ap.sh
 ```
-`run_ap.sh` starts the vsomeip **routing manager**, then the gateway + the four driving
-apps — the manual stand-in for **Execution Management** in machine mode `Driving` with
-`DrivingFG = Active` (on a full platform, EM starts these from the Machine/Execution
-Manifests). `safe_stop_app` is **not** started here — it runs only in `DrivingFG=SafeStop`.
+
+You do **not** need to export anything by hand — `run_ap.sh` already sets it:
+`ARA_COM_EVENT_BINDING=vsomeip` + `VSOMEIP_CONFIGURATION` (internal AAs + gateway service
+side), and `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`, `ROS_DOMAIN_ID=0`,
+`CYCLONEDDS_URI=config/cyclonedds-local.xml` (gateway's rclcpp side → the local
+`zenoh-bridge-ros2dds` on loopback). It then starts the vsomeip **routing manager**, the
+gateway, and the four driving apps — the manual stand-in for **Execution Management** in
+machine mode `Driving` with `DrivingFG = Active` (on a full platform, EM starts these from
+the Machine/Execution Manifests). `safe_stop_app` is **not** started here — it runs only in
+`DrivingFG=SafeStop`.
+
+> Using the alternative pure-DDS-over-LAN topology (no Zenoh)? Edit `run_ap.sh` to point
+> `CYCLONEDDS_URI` at `config/cyclonedds-peers.xml` (with real IPs) instead.
 
 ### Part 6 — Verify
 - Ego vehicle drives the lane in CARLA and **stops before the obstacle**, then resumes

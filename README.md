@@ -25,6 +25,29 @@ git clone --recursive https://github.com/<you>/Autosar_AP_SDC_Carla.git
 git submodule update --init --recursive
 ```
 
+### Apply the carla_msgs patch (required for the gateway)
+
+The `CarlaEgoVehicleControl` message the gateway publishes is **not** in the stock ROS
+set. It lives in `patches/add-carla_msgs.patch`, which adds the `carla_msgs` package to the
+`ros-data-types-cyclonedds` **nested submodule** (that submodule can't carry the change
+directly). After the recursive clone/update above, apply it:
+
+```bash
+cd lwrcl/data_types/src/ros-data-types-cyclonedds
+git apply --check ../../../../patches/add-carla_msgs.patch   # dry run
+git apply         ../../../../patches/add-carla_msgs.patch
+cd -                                                          # back to repo root
+```
+
+Then (re)build the lwrcl CycloneDDS data types so `carla_msgs` is generated:
+
+```bash
+cd lwrcl && ./build_data_types.sh cyclonedds install
+```
+
+Skip this only if you have already repointed the submodules at forks that include
+`carla_msgs`.
+
 ## Dependencies
 
 ### Windows host (CARLA simulator + bridge)

@@ -19,7 +19,7 @@ class PlanningApp {
         out_(instance), log_("planning") {
     core_.setGlobalPath(centerline);
     out_.OfferService();
-    state_.state.Subscribe(); objects_.objects.Subscribe();
+    state_.state.Subscribe(1); objects_.objects.Subscribe(1);
     log_.Info("TrajectoryService offered; VehicleStateService + ObjectsService subscribed");
   }
   void step() {

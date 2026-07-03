@@ -16,7 +16,7 @@ class LocalizationApp {
         out_(instance), log_("localization") {
     ekf_.initialize(0.0, 0.0, 0.0, 0.0, 0.0);
     out_.OfferService();
-    sensors_.imu.Subscribe(); sensors_.gps.Subscribe(); sensors_.speed.Subscribe();
+    sensors_.imu.Subscribe(1); sensors_.gps.Subscribe(1); sensors_.speed.Subscribe(1);
     sensors_.imu.SetReceiveHandler([this] { onImu(); });
     sensors_.gps.SetReceiveHandler([this] { onGps(); });
     sensors_.speed.SetReceiveHandler([this] { onSpeed(); });

@@ -1,27 +1,24 @@
 // av_ap/ap.hpp — AUTOSAR Adaptive Platform Functional-Cluster adaptation layer.
 //
-// Thin C++ wrappers that let the av-stack node processes use the AP Functional
-// Clusters directly, matching the arc42 architecture:
-//   ara::exec  → ExecutionClient  (report process lifecycle to Execution Management)
-//   ara::log   → Logger           (structured Log & Trace)
-//   ara::phm   → SupervisedEntity  (alive/deadline supervision by Platform Health Mgmt)
+// Thin wrappers over the AP Functional Clusters, matching the arc42 architecture:
+//   ara::exec  → ExecutionClient   (report process lifecycle to Execution Management)
+//   ara::log   → Logger            (structured Log & Trace)
+//   ara::phm   → SupervisedEntity   (alive/deadline supervision by Platform Health Mgmt)
 //   (system state = ara::sm Machine States + Function Groups; see the Machine/Execution Manifests)
 //
-// Communication itself is provided by lwrcl's `ara::com` backend, so the node code
-// keeps the rclcpp-compatible pub/sub API and does not appear here.
-//
 // Build modes:
-//   -DAP_HAVE_ARA  → calls the real ara::* APIs (Jetson / adaptive-autosar backend).
-//   (default)      → a host shim (stderr + always-Driving) so the stack still builds
-//                    and runs on a plain Linux host over the CycloneDDS backend.
+//   -DAP_HAVE_ARA  → real ara::* APIs (Adaptive-AUTOSAR runtime on the Jetson).
+//   (default)      → host shim (stderr) so the stack builds/runs on a plain host (Path A).
 #ifndef AV_AP_AP_HPP
 #define AV_AP_AP_HPP
 
 #include <cstdint>
+#include <memory>
 #include <string>
 
 #if defined(AP_HAVE_ARA)
 #include "ara/core/initialization.h"
+#include "ara/core/instance_specifier.h"
 #include "ara/exec/execution_client.h"
 #include "ara/log/logging.h"
 #include "ara/phm/supervised_entity.h"
@@ -47,35 +44,22 @@ inline void Deinitialize() {
 }
 
 // ---------------------------------------------------------------------------
-// ara::exec — Execution Management client. Report process running/terminating.
+// ara::exec — Execution Management client.
+//   NOTE: ara::exec::ExecutionClient must be constructed with the platform's SOME/IP
+//   RpcClient, which is provided by a running Execution Manager. In this manual
+//   bring-up (run_ap.sh stands in for EM) there is no EM daemon to report to, so these
+//   calls are no-ops. Under a real EM, construct an ara::exec::ExecutionClient here and
+//   forward ReportExecutionState(kRunning/kTerminating).
 // ---------------------------------------------------------------------------
 class ExecutionClient {
  public:
   ExecutionClient() = default;
-
-  void ReportRunning() {
-#if defined(AP_HAVE_ARA)
-    client_.ReportExecutionState(ara::exec::ExecutionState::kRunning);
-#else
-    std::cerr << "[ara::exec] ReportExecutionState(kRunning)\n";
-#endif
-  }
-  void ReportTerminating() {
-#if defined(AP_HAVE_ARA)
-    client_.ReportExecutionState(ara::exec::ExecutionState::kTerminating);
-#else
-    std::cerr << "[ara::exec] ReportExecutionState(kTerminating)\n";
-#endif
-  }
-
- private:
-#if defined(AP_HAVE_ARA)
-  ara::exec::ExecutionClient client_{};
-#endif
+  void ReportRunning() {}
+  void ReportTerminating() {}
 };
 
 // ---------------------------------------------------------------------------
-// ara::log — Log & Trace. Minimal severity-tagged logger.
+// ara::log — Log & Trace. Severity-tagged logger.
 // ---------------------------------------------------------------------------
 class Logger {
  public:
@@ -110,23 +94,39 @@ class Logger {
 
  private:
 #if defined(AP_HAVE_ARA)
-  ara::log::Logger& logger_;
+  ara::log::Logger logger_;   // ara::log::CreateLogger returns by value
 #else
   std::string ctx_;
 #endif
 };
 
 // ---------------------------------------------------------------------------
-// ara::phm — Platform Health Management. Report a checkpoint every control
-// cycle so PHM alive/deadline supervision can detect a stalled/overrunning loop.
+// ara::phm — Platform Health Management. Report a checkpoint each control cycle so
+// PHM alive/deadline supervision can detect a stalled / overrunning loop.
 // ---------------------------------------------------------------------------
 class SupervisedEntity {
  public:
-  explicit SupervisedEntity(std::uint32_t se_id) : id_(se_id) {}
+  explicit SupervisedEntity(std::uint32_t se_id)
+      : id_(se_id)
+#if defined(AP_HAVE_ARA)
+        , spec_("av/SupervisedEntity_" + std::to_string(se_id))
+#endif
+  {
+#if defined(AP_HAVE_ARA)
+    auto r = ara::phm::SupervisedEntity::Create(spec_);
+    if (r.HasValue()) {
+      entity_ = std::make_unique<ara::phm::SupervisedEntity>(std::move(r).Value());
+    }
+#endif
+  }
 
   void ReportCheckpoint(std::uint32_t checkpoint_id) {
 #if defined(AP_HAVE_ARA)
-    entity_.ReportCheckpoint(checkpoint_id);
+    // ara::phm::SupervisedEntity::ReportCheckpoint requires a uint32-backed enum id.
+    enum class Checkpoint : std::uint32_t {};
+    if (entity_) {
+      (void)entity_->ReportCheckpoint(static_cast<Checkpoint>(checkpoint_id));
+    }
 #else
     (void)checkpoint_id;  // host: supervision is a no-op
 #endif
@@ -136,7 +136,8 @@ class SupervisedEntity {
  private:
   std::uint32_t id_;
 #if defined(AP_HAVE_ARA)
-  ara::phm::SupervisedEntity<std::uint32_t> entity_{};
+  ara::core::InstanceSpecifier spec_;                       // must outlive entity_
+  std::unique_ptr<ara::phm::SupervisedEntity> entity_;      // null if PHM unavailable
 #endif
 };
 

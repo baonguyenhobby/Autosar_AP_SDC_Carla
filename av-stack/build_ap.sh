@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build the av-stack for the AP target or for host testing.
-#   ./build_ap.sh host              # cores + av_ap + host tests (no lwrcl)
-#   ./build_ap.sh adaptive-autosar  # also build the AAs + gateway on lwrcl
+#   ./build_ap.sh host             # cores + host tests on the ara::com shim (no ara/ROS)
+#   ./build_ap.sh adaptive-autosar # AAs on real ara::com (SOME/IP) + gateway ROS2<->ara::com
 set -euo pipefail
 
 BACKEND="${1:-host}"
@@ -11,8 +11,11 @@ case "$BACKEND" in
   host)
     cmake -S . -B "$BUILD_DIR" -DAP_BACKEND=off ;;
   adaptive-autosar)
-    # /opt/autosar-ap = Adaptive-AUTOSAR runtime (exports AdaptiveAutosarAP:: ara_* targets);
-    # /opt/cyclonedds-libs = lwrcl CycloneDDS backend (gateway's ROS 2 side). See lwrcl README.
+    # AAs use real ara::com -> need the Adaptive-AUTOSAR runtime (/opt/autosar-ap,
+    # exporting AdaptiveAutosarAP::ara_*). The gateway also needs the lwrcl cyclonedds
+    # backend + ROS message types under /opt/cyclonedds-libs and CycloneDDS under
+    # /opt/cyclonedds (./build_libraries.sh cyclonedds install; ./build_data_types.sh
+    #  cyclonedds install; ./build_lwrcl.sh cyclonedds install).
     export CMAKE_PREFIX_PATH="/opt/autosar-ap:/opt/autosar-ap-libs:/opt/vsomeip:/opt/cyclonedds-libs:/opt/cyclonedds:${CMAKE_PREFIX_PATH:-}"
     cmake -S . -B "$BUILD_DIR" -DAP_BACKEND=adaptive-autosar ;;
   *)

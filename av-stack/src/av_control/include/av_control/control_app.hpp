@@ -19,7 +19,7 @@ class ControlApp {
         traj_(services::TrajectoryServiceProxy::FindService(instance).front()),
         out_(instance), log_("control"), se_(1) {
     out_.OfferService();
-    state_.state.Subscribe(); traj_.trajectory.Subscribe();
+    state_.state.Subscribe(1); traj_.trajectory.Subscribe(1);
     log_.Info("ControlService offered; VehicleState + Trajectory subscribed");
   }
   void step(double dt) {

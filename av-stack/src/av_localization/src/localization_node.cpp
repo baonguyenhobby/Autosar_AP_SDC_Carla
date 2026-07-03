@@ -1,10 +1,11 @@
 // av_localization/localization_node.cpp
-// Thin rclcpp wrapper around EkfLocalizer.
-//   in : sensor_msgs/Imu           (yaw-rate + heading)   on ~/input/imu
-//        geometry_msgs/PoseStamped (GPS position + head.) on ~/input/gps
-//        std_msgs/Float64          (wheel speed)          on ~/input/wheel_speed
-//   out: av_msgs/VehicleState                             on ~/output/vehicle_state
-//        nav_msgs/Odometry                                on ~/output/odometry
+// lwrcl (rclcpp-compatible) node wrapping EkfLocalizer. CycloneDDS backend;
+// method-style message accessors.
+//   in : sensor_msgs/Imu           on input/imu
+//        geometry_msgs/PoseStamped on input/gps
+//        std_msgs/Float64          on input/wheel_speed
+//   out: av_msgs/VehicleState      on output/vehicle_state
+//        nav_msgs/Odometry         on output/odometry
 #include <cmath>
 #include <memory>
 
@@ -36,24 +37,24 @@ class LocalizationNode : public rclcpp::Node {
     ekf_->initialize(0.0, 0.0, 0.0, 0.0, now().seconds());
 
     imu_sub_ = create_subscription<sensor_msgs::msg::Imu>(
-        "input/imu", 50, std::bind(&LocalizationNode::onImu, this, _1));
+        "/av/imu", 50, std::bind(&LocalizationNode::onImu, this, _1));
     gps_sub_ = create_subscription<geometry_msgs::msg::PoseStamped>(
-        "input/gps", 10, std::bind(&LocalizationNode::onGps, this, _1));
+        "/av/gps", 10, std::bind(&LocalizationNode::onGps, this, _1));
     spd_sub_ = create_subscription<std_msgs::msg::Float64>(
-        "input/wheel_speed", 10,
-        [this](std_msgs::msg::Float64::SharedPtr m) { ekf_->updateSpeed(m->data); });
+        "/av/wheel_speed", 10,
+        [this](std_msgs::msg::Float64::SharedPtr m) { ekf_->updateSpeed(m->data()); });
 
-    state_pub_ = create_publisher<av_msgs::msg::VehicleState>("output/vehicle_state", 10);
-    odom_pub_ = create_publisher<nav_msgs::msg::Odometry>("output/odometry", 10);
+    state_pub_ = create_publisher<av_msgs::msg::VehicleState>("/av/vehicle_state", 10);
+    odom_pub_ = create_publisher<nav_msgs::msg::Odometry>("/av/odometry", 10);
     RCLCPP_INFO(get_logger(), "localization_node ready");
   }
 
  private:
   void onImu(sensor_msgs::msg::Imu::SharedPtr msg) {
-    const double t = rclcpp::Time(msg->header.stamp).seconds();
+    const double t = rclcpp::Time(msg->header().stamp()).seconds();
     if (last_imu_t_ > 0.0) {
       const double dt = t - last_imu_t_;
-      ekf_->predict(dt, msg->angular_velocity.z);
+      ekf_->predict(dt, msg->angular_velocity().z());
     }
     last_imu_t_ = t;
     ekf_->setStamp(t);
@@ -62,30 +63,30 @@ class LocalizationNode : public rclcpp::Node {
 
   void onGps(geometry_msgs::msg::PoseStamped::SharedPtr msg) {
     av::GpsMeasurement g;
-    g.stamp = rclcpp::Time(msg->header.stamp).seconds();
-    g.x = msg->pose.position.x;
-    g.y = msg->pose.position.y;
+    g.stamp = rclcpp::Time(msg->header().stamp()).seconds();
+    g.x = msg->pose().position().x();
+    g.y = msg->pose().position().y();
     ekf_->updateGps(g);
-    const auto& q = msg->pose.orientation;
-    ekf_->updateYaw(yawFromQuat(q.x, q.y, q.z, q.w));
+    const auto& q = msg->pose().orientation();
+    ekf_->updateYaw(yawFromQuat(q.x(), q.y(), q.z(), q.w()));
   }
 
   void publish() {
     const av::VehicleState s = ekf_->state();
     av_msgs::msg::VehicleState vs;
-    vs.header.stamp = now();
-    vs.header.frame_id = "map";
-    vs.x = s.x; vs.y = s.y; vs.yaw = s.yaw; vs.v = s.v;
+    vs.header().stamp() = now();
+    vs.header().frame_id() = "map";
+    vs.x() = s.x; vs.y() = s.y; vs.yaw() = s.yaw; vs.v() = s.v;
     state_pub_->publish(vs);
 
     nav_msgs::msg::Odometry odom;
-    odom.header = vs.header;
-    odom.child_frame_id = "base_link";
-    odom.pose.pose.position.x = s.x;
-    odom.pose.pose.position.y = s.y;
-    odom.pose.pose.orientation.z = std::sin(s.yaw * 0.5);
-    odom.pose.pose.orientation.w = std::cos(s.yaw * 0.5);
-    odom.twist.twist.linear.x = s.v;
+    odom.header() = vs.header();
+    odom.child_frame_id() = "base_link";
+    odom.pose().pose().position().x() = s.x;
+    odom.pose().pose().position().y() = s.y;
+    odom.pose().pose().orientation().z() = std::sin(s.yaw * 0.5);
+    odom.pose().pose().orientation().w() = std::cos(s.yaw * 0.5);
+    odom.twist().twist().linear().x() = s.v;
     odom_pub_->publish(odom);
   }
 

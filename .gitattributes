@@ -1,3 +1,8 @@
+# This is a Linux/Jetson project: normalize ALL text files to LF (Git auto-detects
+# binary files and leaves them untouched). This silences the "LF will be replaced by
+# CRLF" warnings and keeps source LF in the repo and the working copy.
+* text=auto eol=lf
+
 # Keep these byte-exact with LF endings on every platform.
 # Patches must stay LF or `git apply` can fail on Linux/the Jetson.
 *.patch  text eol=lf

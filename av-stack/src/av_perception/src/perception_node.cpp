@@ -1,8 +1,9 @@
 // av_perception/perception_node.cpp
-// Thin rclcpp wrapper around PerceptionCore.
-//   in : sensor_msgs/PointCloud2  (ego-frame LiDAR)  on ~/input/points
-//        av_msgs/VehicleState      (ego pose)         on ~/input/vehicle_state
-//   out: av_msgs/DetectedObjectArray                  on ~/output/objects
+// lwrcl (rclcpp-compatible) node wrapping PerceptionCore. CycloneDDS backend;
+// method-style message accessors.
+//   in : sensor_msgs/PointCloud2  on input/points
+//        av_msgs/VehicleState     on input/vehicle_state
+//   out: av_msgs/DetectedObjectArray on output/objects
 #include <memory>
 
 #include "rclcpp/rclcpp.hpp"
@@ -27,21 +28,21 @@ class PerceptionNode : public rclcpp::Node {
     core_ = std::make_unique<av::PerceptionCore>(p);
 
     state_sub_ = create_subscription<av_msgs::msg::VehicleState>(
-        "input/vehicle_state", 10,
+        "/av/vehicle_state", 10,
         [this](av_msgs::msg::VehicleState::SharedPtr msg) { ego_ = *msg; });
 
     cloud_sub_ = create_subscription<sensor_msgs::msg::PointCloud2>(
-        "input/points", rclcpp::SensorDataQoS(),
+        "/av/points", rclcpp::SensorDataQoS(),
         std::bind(&PerceptionNode::onCloud, this, _1));
 
-    pub_ = create_publisher<av_msgs::msg::DetectedObjectArray>("output/objects", 10);
+    pub_ = create_publisher<av_msgs::msg::DetectedObjectArray>("/av/objects", 10);
     RCLCPP_INFO(get_logger(), "perception_node ready");
   }
 
  private:
   void onCloud(sensor_msgs::msg::PointCloud2::SharedPtr msg) {
     av::PointCloud cloud;
-    cloud.reserve(msg->width * msg->height);
+    cloud.reserve(static_cast<std::size_t>(msg->width()) * msg->height());
     sensor_msgs::PointCloud2ConstIterator<float> ix(*msg, "x");
     sensor_msgs::PointCloud2ConstIterator<float> iy(*msg, "y");
     sensor_msgs::PointCloud2ConstIterator<float> iz(*msg, "z");
@@ -50,24 +51,24 @@ class PerceptionNode : public rclcpp::Node {
                        static_cast<double>(*iz)});
     }
 
-    av::Pose2D ego{ego_.x, ego_.y, ego_.yaw};
+    av::Pose2D ego{ego_.x(), ego_.y(), ego_.yaw()};
     av::DetectedObjectArray objs = core_->detect(cloud, ego);
 
     av_msgs::msg::DetectedObjectArray out;
-    out.header = msg->header;
-    out.header.frame_id = "map";
+    out.header() = msg->header();
+    out.header().frame_id() = "map";
     for (const auto& o : objs) {
       av_msgs::msg::DetectedObject d;
-      d.id = o.id;
-      d.centroid.x = o.centroid.x;
-      d.centroid.y = o.centroid.y;
-      d.centroid.z = o.centroid.z;
-      d.size_x = o.size_x;
-      d.size_y = o.size_y;
-      d.size_z = o.size_z;
-      d.yaw = o.yaw;
-      d.num_points = o.num_points;
-      out.objects.push_back(d);
+      d.id() = o.id;
+      d.centroid().x() = o.centroid.x;
+      d.centroid().y() = o.centroid.y;
+      d.centroid().z() = o.centroid.z;
+      d.size_x() = o.size_x;
+      d.size_y() = o.size_y;
+      d.size_z() = o.size_z;
+      d.yaw() = o.yaw;
+      d.num_points() = o.num_points;
+      out.objects().push_back(d);
     }
     pub_->publish(out);
   }

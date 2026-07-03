@@ -1,9 +1,11 @@
 // av_planning/planning_node.cpp
-// Thin rclcpp wrapper around PlannerCore.
-//   in : av_msgs/VehicleState        on ~/input/vehicle_state
-//        av_msgs/DetectedObjectArray on ~/input/objects
-//   out: av_msgs/Trajectory          on ~/output/trajectory
+// lwrcl (rclcpp-compatible) node wrapping PlannerCore. CycloneDDS backend;
+// method-style message accessors.
+//   in : av_msgs/VehicleState        on input/vehicle_state
+//        av_msgs/DetectedObjectArray on input/objects
+//   out: av_msgs/Trajectory          on output/trajectory
 #include <memory>
+#include <vector>
 
 #include "rclcpp/rclcpp.hpp"
 #include "av_msgs/msg/vehicle_state.hpp"
@@ -33,13 +35,13 @@ class PlanningNode : public rclcpp::Node {
     core_->setGlobalPath(centerline);
 
     state_sub_ = create_subscription<av_msgs::msg::VehicleState>(
-        "input/vehicle_state", 10,
+        "/av/vehicle_state", 10,
         [this](av_msgs::msg::VehicleState::SharedPtr m) { state_ = *m; have_state_ = true; });
     obj_sub_ = create_subscription<av_msgs::msg::DetectedObjectArray>(
-        "input/objects", 10,
+        "/av/objects", 10,
         [this](av_msgs::msg::DetectedObjectArray::SharedPtr m) { objects_ = *m; });
 
-    pub_ = create_publisher<av_msgs::msg::Trajectory>("output/trajectory", 10);
+    pub_ = create_publisher<av_msgs::msg::Trajectory>("/av/trajectory", 10);
     timer_ = create_wall_timer(100ms, std::bind(&PlanningNode::onTimer, this));
     RCLCPP_INFO(get_logger(), "planning_node ready");
   }
@@ -48,26 +50,26 @@ class PlanningNode : public rclcpp::Node {
   void onTimer() {
     if (!have_state_) return;
     av::VehicleState ego;
-    ego.x = state_.x; ego.y = state_.y; ego.yaw = state_.yaw; ego.v = state_.v;
+    ego.x = state_.x(); ego.y = state_.y(); ego.yaw = state_.yaw(); ego.v = state_.v();
 
     av::DetectedObjectArray objs;
-    for (const auto& d : objects_.objects) {
+    for (const auto& d : objects_.objects()) {
       av::DetectedObject o;
-      o.id = d.id;
-      o.centroid = {d.centroid.x, d.centroid.y, d.centroid.z};
-      o.size_x = d.size_x; o.size_y = d.size_y; o.size_z = d.size_z;
-      o.yaw = d.yaw; o.num_points = d.num_points;
+      o.id = d.id();
+      o.centroid = {d.centroid().x(), d.centroid().y(), d.centroid().z()};
+      o.size_x = d.size_x(); o.size_y = d.size_y(); o.size_z = d.size_z();
+      o.yaw = d.yaw(); o.num_points = d.num_points();
       objs.push_back(o);
     }
 
     av::Trajectory traj = core_->plan(ego, objs);
     av_msgs::msg::Trajectory out;
-    out.header.stamp = now();
-    out.header.frame_id = "map";
+    out.header().stamp() = now();
+    out.header().frame_id() = "map";
     for (const auto& tp : traj) {
       av_msgs::msg::TrajectoryPoint p;
-      p.x = tp.x; p.y = tp.y; p.yaw = tp.yaw; p.v = tp.v;
-      out.points.push_back(p);
+      p.x() = tp.x; p.y() = tp.y; p.yaw() = tp.yaw; p.v() = tp.v;
+      out.points().push_back(p);
     }
     pub_->publish(out);
   }

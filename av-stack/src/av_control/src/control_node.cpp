@@ -1,8 +1,9 @@
 // av_control/control_node.cpp
-// Thin rclcpp wrapper around ControllerCore.
-//   in : av_msgs/VehicleState  on ~/input/vehicle_state
-//        av_msgs/Trajectory    on ~/input/trajectory
-//   out: av_msgs/ControlCommand on ~/output/command  (fixed-rate)
+// lwrcl (rclcpp-compatible) node wrapping ControllerCore. Built against the lwrcl
+// CycloneDDS backend; uses method-style message accessors (m->x(), out.x() = ...).
+//   in : av_msgs/VehicleState  on input/vehicle_state
+//        av_msgs/Trajectory    on input/trajectory
+//   out: av_msgs/ControlCommand on output/command  (fixed-rate)
 #include <memory>
 
 #include "rclcpp/rclcpp.hpp"
@@ -27,13 +28,13 @@ class ControlNode : public rclcpp::Node {
     core_ = std::make_unique<av::ControllerCore>(p);
 
     state_sub_ = create_subscription<av_msgs::msg::VehicleState>(
-        "input/vehicle_state", 10,
+        "/av/vehicle_state", 10,
         [this](av_msgs::msg::VehicleState::SharedPtr m) { state_ = *m; have_state_ = true; });
     traj_sub_ = create_subscription<av_msgs::msg::Trajectory>(
-        "input/trajectory", 10,
+        "/av/trajectory", 10,
         [this](av_msgs::msg::Trajectory::SharedPtr m) { traj_ = *m; });
 
-    pub_ = create_publisher<av_msgs::msg::ControlCommand>("output/command", 10);
+    pub_ = create_publisher<av_msgs::msg::ControlCommand>("/av/command", 10);
     const double rate_hz = declare_parameter("rate_hz", 50.0);
     period_ = 1.0 / rate_hz;
     timer_ = create_wall_timer(
@@ -46,17 +47,17 @@ class ControlNode : public rclcpp::Node {
     if (!have_state_) return;
     av::VehicleState ego;
     ego.stamp = now().seconds();
-    ego.x = state_.x; ego.y = state_.y; ego.yaw = state_.yaw; ego.v = state_.v;
+    ego.x = state_.x(); ego.y = state_.y(); ego.yaw = state_.yaw(); ego.v = state_.v();
 
     av::Trajectory traj;
-    for (const auto& p : traj_.points)
-      traj.push_back({p.x, p.y, p.yaw, p.v});
+    for (const auto& p : traj_.points())
+      traj.push_back({p.x(), p.y(), p.yaw(), p.v()});
 
     av::ControlCommand c = core_->computeCommand(ego, traj, period_);
     av_msgs::msg::ControlCommand out;
-    out.header.stamp = now();
-    out.header.frame_id = "base_link";
-    out.throttle = c.throttle; out.brake = c.brake; out.steer = c.steer;
+    out.header().stamp() = now();
+    out.header().frame_id() = "base_link";
+    out.throttle() = c.throttle; out.brake() = c.brake; out.steer() = c.steer;
     pub_->publish(out);
   }
 
