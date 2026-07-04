@@ -25,8 +25,8 @@
     <Discovery>
       <ParticipantIndex>auto</ParticipantIndex>
       <Peers>
-        <Peer address="192.168.1.50"/>             <!-- Jetson Orin Nano  (LAN 192.168.1.0/24, gw .1) -->
-        <Peer address="192.168.1.10"/>             <!-- Windows / WSL2 mirrored host (this machine) -->
+        <Peer address="192.168.100.1"/>             <!-- Jetson Orin Nano  (LAN 192.168.1.0/24, gw .1) -->
+        <Peer address="192.168.100.2"/>             <!-- Windows / WSL2 mirrored host (this machine) -->
       </Peers>
     </Discovery>
     <Internal>
