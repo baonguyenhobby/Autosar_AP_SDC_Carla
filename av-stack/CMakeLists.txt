@@ -56,7 +56,14 @@ if(AP_BACKEND STREQUAL "adaptive-autosar")
   # --- lwrcl (CycloneDDS) + ROS message libs, for the GATEWAY's ROS 2 side only ---
   set(LWRCL_PREFIX      "/opt/cyclonedds-libs" CACHE PATH "lwrcl (cyclonedds) install prefix")
   set(CYCLONEDDS_PREFIX "/opt/cyclonedds"      CACHE PATH "CycloneDDS runtime prefix")
+  # ara::com (SOME/IP) is implemented on vsomeip, so linking AdaptiveAutosarAP::ara_com
+  # drags in -lvsomeip3 / -lvsomeip3-sd / -lvsomeip3-e2e. Put vsomeip's lib dir on the
+  # link search path so those resolve (CMAKE_PREFIX_PATH alone only helps find_package).
+  set(VSOMEIP_PREFIX "/opt/vsomeip" CACHE PATH "vsomeip install prefix (ara::com SOME/IP transport)")
   link_directories(${LWRCL_PREFIX}/lib ${CYCLONEDDS_PREFIX}/lib)
+  if(EXISTS "${VSOMEIP_PREFIX}/lib")
+    link_directories(${VSOMEIP_PREFIX}/lib)
+  endif()
   # CycloneDDS-CXX (ddscxx) installs its C++ headers under include/ddscxx --
   # that is where <dds/dds.hpp> lives, so it must be on the include path too.
   set(GW_ROS_INCLUDES ${LWRCL_PREFIX}/include
