@@ -162,6 +162,7 @@ WSL Zenoh listener and republishes the CARLA topics onto local CycloneDDS domain
 carries the LAN hop; DDS stays on loopback):
 
 ```bash
+nc -vz 192.168.100.2 7447  #expected successful
 export ROS_DOMAIN_ID=0
 zenoh-bridge-ros2dds -d 0 -e tcp/192.168.100.2:7447   # 192.168.100.2 = WSL2 host over the direct cable
 ros2 topic list | grep /carla/ego_vehicle    # imu / odometry / lidar should appear
