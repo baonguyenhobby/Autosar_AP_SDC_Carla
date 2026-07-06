@@ -182,6 +182,19 @@ zenoh-bridge-ros2dds \
   -c ~/Autosar_AP_SDC_Carla/av-stack/config/zenoh-bridge-ros2dds-carla-jetson.json5 \
   -e tcp/192.168.100.2:7447        # 192.168.100.2 = WSL2 host over the direct cable
 
+###To Kill them####
+   pkill -f zenoh-bridge-ros2dds; pkill -f run_ap.sh; pkill -f autosar_vsomeip_routing_manager
+   pkill -f '_app$'; pkill -f carla_gateway
+
+###Inside docker autoware-dev###
+export PATH="$HOME/autoware_carla_launch/external/zenoh-plugin-ros2dds/target/release:$PATH"
+export CYCLONEDDS_URI="file://$HOME/av-stack-config/cyclonedds-local.xml"
+zenoh-bridge-ros2dds \
+  -c ~/av-stack-config/zenoh-bridge-ros2dds-carla-jetson.json5 \
+  -e tcp/192.168.100.2:7447
+
+# other terminal:
+cd ~/Autosar_AP_SDC_Carla/av-stack && ./run_ap.sh
 # verify (needs the same DDS env as the gateway):
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 ros2 topic list | grep /carla/ego_vehicle    # imu / odometry / lidar / vehicle_control_cmd
