@@ -38,7 +38,7 @@ in for the SOME/IP binding); `control_app` represents the `DrivingFG=Active` sta
 
 Topology (two transports):
 ```
-CARLA 0.9.14 (Windows) <> WSL carla-ros-bridge ──DDS (local)──▶ zenoh-bridge-ros2dds (WSL)
+CARLA 0.9.15 (Windows) <> WSL carla-ros-bridge ──DDS (local)──▶ zenoh-bridge-ros2dds (WSL)
                                                                         │ Zenoh tcp/7447
                                                                         ▼
                                                        zenoh-bridge-ros2dds (Jetson)
@@ -68,8 +68,10 @@ that the gateway cannot consume.
   (`192.168.100.2` for the cable) and CARLA is reachable from WSL at `127.0.0.1`.
 
 ### Part 1 — Windows host: CARLA
-1. Launch **CARLA 0.9.14**: `CarlaUE4.exe` (add `-quality-level=Low` to spare the Orin).
+1. Launch **CARLA 0.9.15**: `CarlaUE4.exe` (add `-quality-level=Low` to spare the Orin).
 2. CARLA listens on `0.0.0.0:2000`; from mirrored WSL2 it's reachable at `127.0.0.1`.
+cd C:\AUTONOMOUS_DRIVING\CARLA\CARLA_0.9.15\WindowsNoEditor
+.\CarlaUE4.exe -quality-level=Low -world-port=2000
 
 ### Part 2 — WSL2: carla-ros-bridge + Zenoh bridge (CARLA → ROS 2 → Zenoh)
 Two processes on the WSL2 side: the official **carla-ros-bridge** turns CARLA into the
@@ -79,17 +81,75 @@ WSL-side **zenoh-bridge-ros2dds** routes exactly those topics onto Zenoh, listen
 `tcp/7447` for the Jetson. Copy `av-stack/config/carla/objects.json` and
 `av-stack/config/zenoh-bridge-ros2dds-carla-wsl.json5` to the WSL2 machine.
 
+Note: copy files into docker 
+	cd /mnt/c/Claude_wsp/Wiki_Self-Driving-Car/git_repos/Autosar_AP_SDC_Carla/av-stack/config/carla
+    docker cp ./objects.json carla-dev:/home/nguyennqb/av-stack-config/
+
+###Raise Kernel UDP buffer limit, execute it outside the docker###
+# raise kernel UDP buffer limits
+sudo sysctl -w net.core.rmem_max=16777216 net.core.rmem_default=16777216
+sudo sysctl -w net.core.wmem_max=16777216 net.core.wmem_default=16777216
+
+# make it survive WSL restarts
+echo -e "net.core.rmem_max=16777216\nnet.core.rmem_default=16777216\nnet.core.wmem_max=16777216\nnet.core.wmem_default=16777216" | sudo tee /etc/sysctl.d/99-dds-buffers.conf
+
+###INSTALL carla-ros-bridge inside docker carla-dev###
+# 0) prerequisites (once)
+source /opt/ros/humble/setup.bash
+sudo apt update
+sudo apt install -y python3-rosdep python3-colcon-common-extensions \
+                    ros-humble-rmw-cyclonedds-cpp
+pip3 install carla==0.9.15 pygame transforms3d   # CARLA client must match the 0.9.15 server
+
+# 1) get the source (the ROS 2 support lives on master; --recurse-submodules is required,
+#    it pulls in ros-carla-msgs = the carla_msgs package your gateway's types must match)
+mkdir -p ~/carla-ros-bridge && cd ~/carla-ros-bridge
+git clone --recurse-submodules https://github.com/carla-simulator/ros-bridge.git src/ros-bridge
+
+# 2) resolve ROS dependencies
+sudo rosdep init 2>/dev/null || true
+rosdep update
+rosdep install --from-paths src --ignore-src -r -y
+
+# 3) build (only what the demo needs — avoids the packages with Humble quirks)
+colcon build --symlink-install \
+  --packages-up-to carla_ros_bridge carla_spawn_objects carla_manual_control
+
+# 4) use it
+source ~/carla-ros-bridge/install/setup.bash
+
+cd ~/carla-ros-bridge
+echo "0.9.15" > src/ros-bridge/carla_ros_bridge/src/carla_ros_bridge/CARLA_VERSION
+colcon build --symlink-install   # rebuild so the installed copy updates
+source install/setup.bash
+
+cd ~/carla-ros-bridge
+touch src/ros-bridge/pcl_recorder/COLCON_IGNORE
+touch src/ros-bridge/rviz_carla_plugin/COLCON_IGNORE
+colcon build --symlink-install
+source install/setup.bash
+
+###INSTALL zenoh-bridge-ros2dds###
+echo "deb [trusted=yes] https://download.eclipse.org/zenoh/debian-repo/ /" \
+  | sudo tee /etc/apt/sources.list.d/zenoh.list
+sudo apt update
+sudo apt install zenoh-bridge-ros2dds #/usr/bin/zenoh-bridge-ros2dds
+	
 ```bash
-# shell 1 — carla-ros-bridge (spawns ego 'ego_vehicle' + the av-stack sensors)
+# shell 1 — carla-ros-bridge (spawns ego 'ego_vehicle' + the av-stack sensors). #export ROS_LOCALHOST_ONLY=1
 source /opt/ros/humble/setup.bash
 source ~/carla-ros-bridge/install/setup.bash
 export ROS_DOMAIN_ID=0
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp     # match the rest of the pipeline
 ros2 launch carla_ros_bridge carla_ros_bridge_with_example_ego_vehicle.launch.py \
-    host:=127.0.0.1 \
+    host:=127.0.0.1 fixed_delta_seconds:=0.1 \
     objects_definition_file:=$HOME/av-stack-config/objects.json
+# fixed_delta_seconds must match the camera/lidar sensor_tick in objects.json (0.1 = 10 Hz).
+# confirm the flag took
+ros2 param get /carla_ros_bridge fixed_delta_seconds   # expect 0.1
 
 # shell 2 — Zenoh bridge (listens tcp/0.0.0.0:7447; allow-list = the gateway's topics)
+#export PATH="$HOME/zenoh-plugin-ros2dds/target/release:$PATH"
 export ROS_DOMAIN_ID=0
 zenoh-bridge-ros2dds -c $HOME/av-stack-config/zenoh-bridge-ros2dds-carla-wsl.json5
 ```
@@ -171,25 +231,6 @@ local **`zenoh-bridge-ros2dds`** is running — the Zenoh↔DDS half that connec
 WSL Zenoh listener and republishes the CARLA topics onto local CycloneDDS domain 0 (Zenoh
 carries the LAN hop; DDS stays on loopback):
 
-###Raise Kernel UDP buffer limit, execute it outside the docker###
-# raise kernel UDP buffer limits
-sudo sysctl -w net.core.rmem_max=16777216 net.core.rmem_default=16777216
-sudo sysctl -w net.core.wmem_max=16777216 net.core.wmem_default=16777216
-
-# make it survive WSL restarts
-echo -e "net.core.rmem_max=16777216\nnet.core.rmem_default=16777216\nnet.core.wmem_max=16777216\nnet.core.wmem_default=16777216" | sudo tee /etc/sysctl.d/99-dds-buffers.conf
-
-```bash
-nc -vz 192.168.100.2 7447  #expected successful
-export PATH="$HOME/autoware_carla_launch/external/zenoh-plugin-ros2dds/target/release:$PATH"
-export ROS_DOMAIN_ID=0
-# REQUIRED: puts the bridge's embedded CycloneDDS on loopback with unicast peer
-# discovery (Linux 'lo' has no multicast, so default discovery finds nothing there).
-export CYCLONEDDS_URI="file://$HOME/Autosar_AP_SDC_Carla/av-stack/config/cyclonedds-local.xml"
-zenoh-bridge-ros2dds \
-  -c ~/Autosar_AP_SDC_Carla/av-stack/config/zenoh-bridge-ros2dds-carla-jetson.json5 \
-  -e tcp/192.168.100.2:7447        # 192.168.100.2 = WSL2 host over the direct cable
-
 ###To Kill them####
    pkill -f zenoh-bridge-ros2dds; pkill -f run_ap.sh; pkill -f autosar_vsomeip_routing_manager
    pkill -f '_app$'; pkill -f carla_gateway
@@ -244,7 +285,7 @@ the Machine/Execution Manifests). `safe_stop_app` is **not** started here — it
 
 | Piece | Machine | Endpoint / config |
 |---|---|---|
-| CARLA 0.9.14 | Windows | listens `0.0.0.0:2000` |
+| CARLA 0.9.15 | Windows | listens `0.0.0.0:2000` |
 | `carla-ros-bridge` | WSL2 | CARLA `127.0.0.1:2000` → `/carla/ego_vehicle/*` on local DDS (domain 0) |
 | `zenoh-bridge-ros2dds` | WSL2 | `zenoh-bridge-ros2dds-carla-wsl.json5` → Zenoh listen `tcp/0.0.0.0:7447` |
 | `zenoh-bridge-ros2dds` | Jetson | `zenoh-bridge-ros2dds-carla-jetson.json5` + `CYCLONEDDS_URI=cyclonedds-local.xml`, `-e tcp/192.168.100.2:7447` |
