@@ -231,14 +231,31 @@ local **`zenoh-bridge-ros2dds`** is running — the Zenoh↔DDS half that connec
 WSL Zenoh listener and republishes the CARLA topics onto local CycloneDDS domain 0 (Zenoh
 carries the LAN hop; DDS stays on loopback):
 
+###Raise Kernel UDP buffer limit on the Jetson host too (outside the docker)###
+sudo sysctl -w net.core.rmem_max=16777216 net.core.rmem_default=16777216
+sudo sysctl -w net.core.wmem_max=16777216 net.core.wmem_default=16777216
+echo -e "net.core.rmem_max=16777216\nnet.core.rmem_default=16777216\nnet.core.wmem_max=16777216\nnet.core.wmem_default=16777216" | sudo tee /etc/sysctl.d/99-dds-buffers.conf
+
+nc -vz 192.168.100.2 7447  #expected successful
+
+###################################################JETSON#############################################
 ###To Kill them####
    pkill -f zenoh-bridge-ros2dds; pkill -f run_ap.sh; pkill -f autosar_vsomeip_routing_manager
    pkill -f '_app$'; pkill -f carla_gateway
+
+cd ~/autoware_carla_launch
+./container/run-autoware-docker.sh
+
+#Inside the docker autoware-dev
+mkdir ~/av-stack-config
+exit
 
 ###Copy files into docker
    cd ~/Autosar_AP_SDC_Carla/av-stack/config/
    docker cp ./zenoh-bridge-ros2dds-carla-jetson.json5 autoware-dev:/home/nguyennqb/av-stack-config/
    docker cp ./cyclonedds-local.xml               autoware-dev:/home/nguyennqb/av-stack-config/
+
+docker start -ai autoware-dev
    
 ###Inside docker autoware-dev###
 export PATH="$HOME/autoware_carla_launch/external/zenoh-plugin-ros2dds/target/release:$PATH"
