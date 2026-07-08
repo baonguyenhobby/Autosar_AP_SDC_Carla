@@ -269,7 +269,7 @@ nc -vz 192.168.100.2 7447  #expected successful
    pkill -f '_app$'; pkill -f carla_gateway
 
 git clone --recursive https://github.com/evshary/autoware_carla_launch.git
-#Modify "autoware_carla_launch\container\run-autoware-docker.sh" by removing '--nvidia'. In addition, adding '--nocleanup --name carla-dev'
+#Modify "autoware_carla_launch\container\run-autoware-docker.sh" by removing '--nvidia'. In addition, adding '--nocleanup --name autoware-dev'
 cd ~/autoware_carla_launch
 ./container/run-autoware-docker.sh
 
