@@ -57,6 +57,10 @@
           "id": "odometry"
         },
         {
+          "type": "sensor.pseudo.tf",
+          "id": "tf"
+        },
+        {
           "type": "sensor.pseudo.speedometer",
           "id": "speedometer"
         },
