@@ -194,6 +194,20 @@ so no DDS peers or UDP 7400–7500 rules are needed.
 3. **AUTOSAR-AP runtime + codegen** — build Adaptive-AUTOSAR and install the runtime +
    `ara_com_codegen` tools to `/opt/autosar-ap` (adds `autosar-generate-comm-manifest`,
    `autosar-generate-proxy-skeleton` to PATH):
+
+   > **REQUIRED PATCH (upstream bug, cannot be committed to the Adaptive-AUTOSAR clone):**
+   > apply `av-stack/patches/0001-adaptive-autosar-fix-vector-deserialize-use-after-move.patch`
+   > BEFORE building. Without it every non-trivial vector event payload (lidar, objects,
+   > trajectory) throws `"Optional contains no value"` on deserialization — `control_app`
+   > terminates and `perception_app` receives nothing (defect D8 in TEST_REPORT_2026-07-07.md).
+   > ```bash
+   > cd ~/Autosar_AP_SDC_Carla/Adaptive-AUTOSAR
+   > git apply ~/Autosar_AP_SDC_Carla/av-stack/patches/0001-adaptive-autosar-fix-vector-deserialize-use-after-move.patch
+   > ```
+   > If the runtime was already installed unpatched, also sync the header:
+   > `sudo cp src/ara/com/serialization.h /opt/autosar-ap/include/ara/com/serialization.h`
+   > and rebuild av-stack (the serializer is a header template compiled into the apps).
+
    ```bash
    cd ~/Autosar_AP_SDC_Carla/Adaptive-AUTOSAR && cmake -DCMAKE_BUILD_TYPE=Release -S . -B build && cmake --build build
    # then install per the project's install step
@@ -260,12 +274,26 @@ exit
    cd ~/Autosar_AP_SDC_Carla/av-stack/config/
    docker cp ./zenoh-bridge-ros2dds-carla-jetson.json5 autoware-dev:/home/nguyennqb/av-stack-config/
    docker cp ./cyclonedds-local.xml               autoware-dev:/home/nguyennqb/av-stack-config/
+   docker cp ../tools/route_keeper.py             autoware-dev:/home/nguyennqb/av-stack-config/
 
+###################################################################
+#Afterwards,
+sudo rmdir /tmp/.docker08gjagjq.xauth
+touch /tmp/.docker08gjagjq.xauth
+xauth nlist :1 | sed -e 's/^..../ffff/' | xauth -f /tmp/.docker08gjagjq.xauth nmerge -
 docker start -ai autoware-dev
    
 ###Inside docker autoware-dev###
 export PATH="$HOME/autoware_carla_launch/external/zenoh-plugin-ros2dds/target/release:$PATH"
 export CYCLONEDDS_URI="file://$HOME/av-stack-config/cyclonedds-local.xml"
+
+# REQUIRED companion: route keeper (tools/route_keeper.py — lwrcl publishes no
+# ros_discovery_info, so without this the bridge leaves every sensor route
+# inactive [is_active:false] and the gateway receives nothing).
+source /opt/ros/humble/setup.bash
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp ROS_DOMAIN_ID=0
+python3 ~/av-stack-config/route_keeper.py > /tmp/route_keeper.log 2>&1 &
+
 zenoh-bridge-ros2dds \
   -c ~/av-stack-config/zenoh-bridge-ros2dds-carla-jetson.json5 \
   -e tcp/192.168.100.2:7447
@@ -274,11 +302,12 @@ zenoh-bridge-ros2dds \
 cd ~/Autosar_AP_SDC_Carla/av-stack && ./run_ap.sh
 
 # verify (needs the same DDS env as the gateway):
+docker exec -it autoware-dev bash
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 export ROS_DOMAIN_ID=0
 export CYCLONEDDS_URI="file:///home/nguyennqb/av-stack-config/cyclonedds-local.xml"
 
-ros2 daemon stop        # kill the cached daemon that was started with the wrong RMW
+#ros2 daemon stop        # kill the cached daemon that was started with the wrong RMW
 ros2 topic list
 ```
 - `192.168.100.2:7447` is the mirrored-WSL2 host on the direct Ethernet link (Part 3).

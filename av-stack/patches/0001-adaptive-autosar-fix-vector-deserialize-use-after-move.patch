@@ -1,0 +1,36 @@
+From: av-stack integration <baonguyenpro@gmail.com>
+Date: Wed, 08 Jul 2026 07:44:32 +0700
+Subject: [PATCH] ara::com: fix use-after-move in Serializer<std::vector<T>>::DeserializeAt
+
+Optional::Value() && disengages the optional (nulls the value pointer), so
+accessing elemResult.Value().second AFTER std::move(elemResult).Value().first
+throws std::runtime_error("Optional contains no value.") on the FIRST element
+of every non-trivially-copyable vector payload.
+
+Observed on target (av-stack, Jetson Orin Nano, vsomeip binding):
+  * proxy-side event deserialization of any vector payload threw per sample;
+    inside vsomeip receive handlers the exception was swallowed by
+    application_impl::invoke_handler (app alive but received nothing),
+  * in an app main loop (GetNewSamples) it escaped and hit std::terminate.
+
+Take the pair out of the Result once, then use both members. The map
+serializer below already does this in the correct order.
+---
+diff --git a/src/ara/com/serialization.h b/src/ara/com/serialization.h
+index d6f4e0b..9a3b617 100644
+--- a/src/ara/com/serialization.h
++++ b/src/ara/com/serialization.h
+@@ -395,8 +395,11 @@ namespace ara
+                         return core::Result<std::pair<std::vector<T>, std::size_t>>::
+                             FromError(elemResult.Error());
+                     }
+-                    result.push_back(std::move(elemResult).Value().first);
+-                    offset += elemResult.Value().second;
++                    // Take the pair out ONCE: Optional::Value()&& disengages the
++                    // optional, so a second elemResult.Value() would throw.
++                    auto elem = std::move(elemResult).Value();
++                    result.push_back(std::move(elem.first));
++                    offset += elem.second;
+                 }
+ 
+                 return core::Result<std::pair<std::vector<T>, std::size_t>>::
