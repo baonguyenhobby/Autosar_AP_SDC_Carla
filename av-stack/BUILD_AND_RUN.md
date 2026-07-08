@@ -160,6 +160,11 @@ export ROS_DOMAIN_ID=0
 zenoh-bridge-ros2dds -c $HOME/av-stack-config/zenoh-bridge-ros2dds-carla-wsl.json5
 ```
 
+#Verify the WSL2 loopback pinning is really active
+for p in $(pgrep -f 'bridge.py|zenoh-bridge-ros2dds'); do
+  tr '\0' '\n' < /proc/$p/environ | grep CYCLONEDDS_URI || echo "pid $p: NO CYCLONEDDS_URI"
+done
+
 The ego role name is `ego_vehicle` (objects.json), which matches the gateway's
 `role_name` default — there is **no** namespace prefix on the Zenoh keys in this
 topology.
