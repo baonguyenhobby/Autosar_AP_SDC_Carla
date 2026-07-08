@@ -22,7 +22,9 @@
         subscribers:     ["/carla/ego_vehicle/imu",
                           "/carla/ego_vehicle/odometry",
                           "/carla/ego_vehicle/lidar",
-                          "/clock"],
+                          "/clock",
+                          "/tf",           // RViz: map -> ego_vehicle/lidar so lidar and
+                          "/tf_static"],   // odometry can share the 'map' fixed frame
         publishers:      ["/carla/ego_vehicle/vehicle_control_cmd"],
         service_servers: ["/all_ignore"],
         service_clients: ["/all_ignore"],

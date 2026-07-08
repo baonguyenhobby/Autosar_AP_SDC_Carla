@@ -297,9 +297,26 @@ python3 ~/av-stack-config/route_keeper.py > /tmp/route_keeper.log 2>&1 &
 zenoh-bridge-ros2dds \
   -c ~/av-stack-config/zenoh-bridge-ros2dds-carla-jetson.json5 \
   -e tcp/192.168.100.2:7447
+  
+  
 
 # other terminal:
+# 1) WSL2 (once, for the lidar overlay): update the wsl json5 with /tf — copy the new
+#    file from the repo — then restart zenoh-bridge-ros2dds there.
+
+# 2) Jetson — terminal A (RViz):
+docker exec -it autoware-dev bash
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp ROS_DOMAIN_ID=0 DISPLAY=:1
+export CYCLONEDDS_URI="file:///home/nguyennqb/av-stack-config/cyclonedds-local.xml"
+rviz2 -d ~/av-stack-config/ego_motion.rviz
+
+# 3) Jetson — terminal B (bag recording):
+docker exec -it autoware-dev bash
+~/av-stack-config/record_ego_bag.sh          # Ctrl-C when done to finalize the bag
+
+# 4) Jetson — terminal C: the moment of truth
 cd ~/Autosar_AP_SDC_Carla/av-stack && ./run_ap.sh
+
 
 # verify (needs the same DDS env as the gateway):
 docker exec -it autoware-dev bash
