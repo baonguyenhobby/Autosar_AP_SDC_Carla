@@ -14,6 +14,14 @@
 // local ROS publishers routed OUT to Zenoh (carla_gateway's control command).
 {
   mode: "peer",
+  // Disable Zenoh's HLC timestamping/validation. The two machines' clocks can differ by
+  // more than Zenoh's 500 ms threshold (WSL2's clock drifts vs the NTP-disciplined Jetson),
+  // and any future-stamped sample is otherwise rejected — starving the sensor routes.
+  // The ROS header.stamp inside each message is untouched (that's what carla_gateway reads);
+  // only Zenoh's own transport timestamp is turned off.
+  timestamping: {
+    enabled: false,
+  },
   plugins: {
     ros2dds: {
       domain: 0,

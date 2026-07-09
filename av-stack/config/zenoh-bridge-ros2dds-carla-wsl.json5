@@ -11,6 +11,12 @@
 {
   mode: "peer",
   listen: { endpoints: ["tcp/0.0.0.0:7447"] },
+  // Disable Zenoh's HLC timestamping so a WSL2/Jetson clock skew above Zenoh's 500 ms
+  // threshold does not reject sensor samples. Must match the Jetson-side config; the ROS
+  // header.stamp inside each message is untouched. See the Jetson config for details.
+  timestamping: {
+    enabled: false,
+  },
   plugins: {
     ros2dds: {
       domain: 0,
