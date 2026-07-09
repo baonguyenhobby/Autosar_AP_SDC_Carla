@@ -159,6 +159,11 @@ ros2 launch carla_ros_bridge carla_ros_bridge_with_example_ego_vehicle.launch.py
 # confirm the flag took
 ros2 param get /carla_ros_bridge fixed_delta_seconds   # expect 0.1
 
+# shell 2 — Zenoh bridge (listens tcp/0.0.0.0:7447; allow-list = the gateway's topics)
+#export PATH="$HOME/zenoh-plugin-ros2dds/target/release:$PATH"
+export ROS_DOMAIN_ID=0
+zenoh-bridge-ros2dds -c $HOME/av-stack-config/zenoh-bridge-ros2dds-carla-wsl.json5
+
 #Problem: 2026-07-09T02:24:00.669766Z ERROR                 rx-0 ThreadId(11) zenoh::net::routing::dispatcher::pubsub: Error treating timestamp for received Data (incoming timestamp from f719ed948ea9abb4260b027cee3beb66 exceeding delta 500ms is rejected: 2026-07-09T02:24:01.572200448Z vs. now: 2026-07-09T02:24:00.669759799Z). Replace timestamp: Some(7660348366004793408/5e6714f325f2abbb8751761528749f60)
 
 #Solution: At Jetson, don't execute: python3 ~/av-stack-config/route_keeper.py > /tmp/route_keeper.log 2>&1 &
@@ -183,10 +188,7 @@ chronyc sources
 #To verify time delta between WSL2 vs Windows host clock
 powershell -ExecutionPolicy Bypass -File .\Measure-WslClockOffset.ps1
 
-# shell 2 — Zenoh bridge (listens tcp/0.0.0.0:7447; allow-list = the gateway's topics)
-#export PATH="$HOME/zenoh-plugin-ros2dds/target/release:$PATH"
-export ROS_DOMAIN_ID=0
-zenoh-bridge-ros2dds -c $HOME/av-stack-config/zenoh-bridge-ros2dds-carla-wsl.json5
+
 ```
 
 #Verify the WSL2 loopback pinning is really active
