@@ -89,6 +89,10 @@ sudo sysctl -w net.core.wmem_max=16777216 net.core.wmem_default=16777216
 # make it survive WSL restarts
 echo -e "net.core.rmem_max=16777216\nnet.core.rmem_default=16777216\nnet.core.wmem_max=16777216\nnet.core.wmem_default=16777216" | sudo tee /etc/sysctl.d/99-dds-buffers.conf
 
+sudo rmdir /tmp/.dockerjac03z5h.xauth
+touch /tmp/.dockerjac03z5h.xauth
+xauth nlist :1 | sed -e 's/^..../ffff/' | xauth -f /tmp/.dockerjac03z5h.xauth nmerge -
+
 docker start -ai carla-dev
 mkdir ~/av-stack-config
 exit
@@ -151,8 +155,31 @@ ros2 launch carla_ros_bridge carla_ros_bridge_with_example_ego_vehicle.launch.py
     host:=127.0.0.1 fixed_delta_seconds:=0.1 \
     objects_definition_file:=$HOME/av-stack-config/objects.json
 # fixed_delta_seconds must match the camera/lidar sensor_tick in objects.json (0.1 = 10 Hz).
+
 # confirm the flag took
 ros2 param get /carla_ros_bridge fixed_delta_seconds   # expect 0.1
+
+#Problem:
+#Solution:
+# 1. Verify the PTP device exists (WSL2 kernel 5.15+)
+ls /dev/ptp*
+
+# 2. Install chrony
+sudo apt install -y chrony
+
+# comment out existing pool/server lines
+sudo sed -i 's/^\(pool\|server\)/#&/' /etc/chrony/chrony.conf
+
+# append the two config lines
+echo 'refclock PHC /dev/ptp0 poll 3 dpoll -2 offset 0 stratum 2
+makestep 0.1 -1' | sudo tee -a /etc/chrony/chrony.conf
+
+# restart and verify
+sudo systemctl restart chrony
+chronyc tracking
+chronyc sources
+#To verify time delta between WSL2 vs Windows host clock
+powershell -ExecutionPolicy Bypass -File .\Measure-WslClockOffset.ps1
 
 # shell 2 — Zenoh bridge (listens tcp/0.0.0.0:7447; allow-list = the gateway's topics)
 #export PATH="$HOME/zenoh-plugin-ros2dds/target/release:$PATH"
