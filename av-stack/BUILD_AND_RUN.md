@@ -280,7 +280,7 @@ so no DDS peers or UDP 7400–7500 rules are needed.
    binary, so do **NOT** set `ARA_COM_EVENT_BINDING=dds` for the gateway — that would break
    its service link to the AAs. See `run_ap.sh` env.
 
-### Part 5 — Run (machine mode Driving + DrivingFG Active)
+### Part 5 — Run (machine mode Driving + DrivingFG Init → Running)
 
 Prerequisite: CARLA + the WSL2 Zenoh bridge are up (Parts 1 + 2A), and on the Jetson the
 local **`zenoh-bridge-ros2dds`** is running — the Zenoh↔DDS half that connects out to the
@@ -387,11 +387,15 @@ You do **not** need to export anything by hand — `run_ap.sh` already sets it:
 `ARA_COM_EVENT_BINDING=vsomeip` + `VSOMEIP_CONFIGURATION` (internal AAs + gateway service
 side), and `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`, `ROS_DOMAIN_ID=0`,
 `CYCLONEDDS_URI=config/cyclonedds-local.xml` (gateway's rclcpp side → the local
-`zenoh-bridge-ros2dds` on loopback). It then starts the vsomeip **routing manager**, the
-gateway, and the four driving apps — the manual stand-in for **Execution Management** in
-machine mode `Driving` with `DrivingFG = Active` (on a full platform, EM starts these from
-the Machine/Execution Manifests). `safe_stop_app` is **not** started here — it runs only in
-`DrivingFG=SafeStop`.
+`zenoh-bridge-ros2dds` on loopback). It then starts the vsomeip **routing manager** and runs
+the mode-gated **two-phase startup** from the execution manifest: first the five
+self-terminating `--phase=init` Processes (**`DrivingFG = Init`**), then it waits until all of
+them have **Terminated** (the barrier — SM's `Init → Running` switch, since constr_1689
+forbids an ExecutionDependency across the two states), then it launches the gateway and the
+four `--phase=run` apps (**`DrivingFG = Running`**). This is the manual stand-in for
+**Execution Management + State Management** (on a full platform, EM starts these from the
+Machine/Execution Manifests as SM drives DrivingFG). `safe_stop_app` is **not** started
+here — it runs only in `DrivingFG=SafeStop`.
 
 ### Endpoint summary
 
@@ -413,7 +417,7 @@ Start order: CARLA → `carla-ros-bridge` (WSL2) → `zenoh-bridge-ros2dds` (WSL
   `CYCLONEDDS_URI=config/cyclonedds-local.xml`):
   `ros2 topic echo /carla/ego_vehicle/vehicle_control_cmd`.
 - **Safe-stop (UC-4)** is an EM/SM behavior: a PHM supervision failure makes State
-  Management switch `DrivingFG Active → SafeStop`; Execution Management stops `control_app`
+  Management switch `DrivingFG Running → SafeStop`; Execution Management stops `control_app`
   and starts `safe_stop_app` (which commands brake). To exercise it without a real fault,
   request the `SafeStop` function-group state via the platform's SM tooling.
 

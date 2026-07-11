@@ -19,23 +19,29 @@
             <MODE-DECLARATION-GROUP>
               <SHORT-NAME>MachineState</SHORT-NAME>
               <MODE-DECLARATIONS>
-                <MODE-DECLARATION><SHORT-NAME>Startup</SHORT-NAME></MODE-DECLARATION>
+                <MODE-DECLARATION><SHORT-NAME>IgnitionOn</SHORT-NAME></MODE-DECLARATION>
                 <MODE-DECLARATION><SHORT-NAME>Driving</SHORT-NAME></MODE-DECLARATION>
                 <MODE-DECLARATION><SHORT-NAME>Parking</SHORT-NAME></MODE-DECLARATION>
                 <MODE-DECLARATION><SHORT-NAME>IgnitionOff</SHORT-NAME></MODE-DECLARATION>
               </MODE-DECLARATIONS>
-              <INITIAL-MODE-REF DEST="MODE-DECLARATION">/av/Machine/MachineState/Startup</INITIAL-MODE-REF>
+              <INITIAL-MODE-REF DEST="MODE-DECLARATION">/av/Machine/MachineState/IgnitionOn</INITIAL-MODE-REF>
             </MODE-DECLARATION-GROUP>
 
-            <!-- Function Group for the driving software (started/stopped per mode). -->
+            <!-- Function Group for the driving software (started/stopped per mode by State Management).
+                 Init  : run the self-terminating *_init Processes (ctor / one-time setup).
+                 Running: run the *_app Processes; SM enters Running only after all *_init
+                          Processes have reached the Terminated ProcessState.
+                 SafeStop: run safe_stop_app.
+                 NOTE: AUTOSAR standardizes an 'Off' initial mode (TPS_MANI_03195) and a
+                 'Verify' mode (constr_10023); omitted here to match the requested 3-mode set. -->
             <MODE-DECLARATION-GROUP>
               <SHORT-NAME>DrivingFG</SHORT-NAME>
               <MODE-DECLARATIONS>
-                <MODE-DECLARATION><SHORT-NAME>Off</SHORT-NAME></MODE-DECLARATION>
-                <MODE-DECLARATION><SHORT-NAME>Active</SHORT-NAME></MODE-DECLARATION>
+                <MODE-DECLARATION><SHORT-NAME>Init</SHORT-NAME></MODE-DECLARATION>
+                <MODE-DECLARATION><SHORT-NAME>Running</SHORT-NAME></MODE-DECLARATION>
                 <MODE-DECLARATION><SHORT-NAME>SafeStop</SHORT-NAME></MODE-DECLARATION>
               </MODE-DECLARATIONS>
-              <INITIAL-MODE-REF DEST="MODE-DECLARATION">/av/Machine/DrivingFG/Off</INITIAL-MODE-REF>
+              <INITIAL-MODE-REF DEST="MODE-DECLARATION">/av/Machine/DrivingFG/Init</INITIAL-MODE-REF>
             </MODE-DECLARATION-GROUP>
 
             <!-- Ethernet + SOME/IP service discovery for ara::com (vsomeip). -->

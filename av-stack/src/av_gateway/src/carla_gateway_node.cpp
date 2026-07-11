@@ -3,11 +3,13 @@
 // topics and forwards them to the ara::com side via the plain CarlaAraBridge interface;
 // publishes the ara::com control command back to CARLA. This TU includes ONLY ROS/CycloneDDS
 // headers (never ara::com) — see carla_bridge.hpp for why.
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <memory>
 #include <string>
+#include <thread>
 
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/imu.hpp"
@@ -118,7 +120,24 @@ class CarlaGateway : public rclcpp::Node {
 };
 
 int main(int argc, char** argv) {
+  // AUTOSAR AP two-phase startup (see av_execution_manifest.arxml). phase=init constructs
+  // the node — declaring params and wiring the ros<->ara bridge pubs/subs — to prove the ROS
+  // side is bringable, holds briefly, then exits so Execution Management marks the Process
+  // Terminated. The gateway has no ara::exec client (ROS-only TU), so "Terminated" is observed
+  // from the process exit. phase=run spins normally.
+  bool init_phase = false;
+  for (int i = 1; i < argc; ++i) {
+    const std::string a = argv[i];
+    if (a == "--phase=init" || a == "init") init_phase = true;
+  }
   rclcpp::init(argc, argv);
+  if (init_phase) {
+    auto node = std::make_shared<CarlaGateway>();
+    rclcpp::spin_some(node);  // let publishers/subscriptions register
+    std::this_thread::sleep_for(std::chrono::seconds(2));
+    rclcpp::shutdown();
+    return 0;
+  }
   rclcpp::spin(std::make_shared<CarlaGateway>());
   rclcpp::shutdown();
   return 0;

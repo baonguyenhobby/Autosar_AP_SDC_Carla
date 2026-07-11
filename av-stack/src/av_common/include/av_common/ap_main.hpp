@@ -7,6 +7,7 @@
 #include <chrono>
 #include <csignal>
 #include <functional>
+#include <string>
 #include <thread>
 
 #include "av_ap/ap.hpp"
@@ -46,6 +47,47 @@ inline int run_app(const std::function<void()>& on_period,
     std::this_thread::sleep_for(period);
   }
   exec.ReportTerminating();
+  Deinitialize();
+  return 0;
+}
+
+// Startup phase, selected by the Execution Manifest via StartupConfig.processArgument.
+// Two Processes share one executable: an "init" Process (phase=init) and a "run"
+// Process (phase=run); see av_execution_manifest.arxml.
+enum class Phase { kInit, kRun };
+
+// Parse the phase from the process arguments; defaults to kRun when unspecified so a
+// plainly-launched binary still behaves as before.
+inline Phase phase_from_args(int argc, char** argv) {
+  for (int i = 1; i < argc; ++i) {
+    const std::string a = argv[i];
+    if (a == "--phase=init" || a == "init") return Phase::kInit;
+    if (a == "--phase=run" || a == "run") return Phase::kRun;
+  }
+  return Phase::kRun;
+}
+
+// AUTOSAR AP two-phase startup — the INIT half of the barrier (see Figure 8.9 of the
+// Manifest Specification). The app object is already constructed by the caller, so the
+// one-time initialization (the ctor: register + offer, plus any optional on_init) has
+// run. We report RUNNING so Execution Management observes the Process, hold briefly, then
+// self-terminate. The manifest marks this Process processIsSelfTerminating; the companion
+// "run" Process is held by an ExecutionDependency until every AA's init Process reaches
+// the Terminated state.
+inline int run_init(std::chrono::milliseconds hold = std::chrono::seconds(2),
+                    const std::function<void()>& on_init = nullptr) {
+  Initialize();  // idempotent (see run_app)
+  install_sigint();
+  ExecutionClient exec;
+  exec.ReportRunning();
+  if (on_init) on_init();
+  // "run for a while": let offered services register / one-time init settle, but cut short
+  // on SIGINT/SIGTERM so Execution Management can stop us promptly.
+  const auto deadline = std::chrono::steady_clock::now() + hold;
+  while (run_flag() && std::chrono::steady_clock::now() < deadline) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  }
+  exec.ReportTerminating();  // self-terminate -> EM marks this Process Terminated
   Deinitialize();
   return 0;
 }
