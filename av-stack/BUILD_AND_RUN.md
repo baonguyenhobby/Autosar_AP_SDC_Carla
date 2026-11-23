@@ -418,7 +418,9 @@ Start order: CARLA → `carla-ros-bridge` (WSL2) → `zenoh-bridge-ros2dds` (WSL
   `ros2 topic echo /carla/ego_vehicle/vehicle_control_cmd`.
 - **Safe-stop (UC-4)** is an EM/SM behavior: a PHM supervision failure makes State
   Management switch `DrivingFG Running → SafeStop`; Execution Management stops `control_app`
-  and starts `safe_stop_app` (which commands brake). To exercise it without a real fault,
+  and starts `safe_stop_app` (which commands brake). `carla_gateway` keeps running in
+  `SafeStop`: it is the only consumer of `ControlService`, so it is what carries the brake
+  command to CARLA. To exercise it without a real fault,
   request the `SafeStop` function-group state via the platform's SM tooling.
 
 ---
