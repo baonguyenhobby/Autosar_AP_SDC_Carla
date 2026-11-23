@@ -34,6 +34,7 @@ int main() {
     return lane;
   }());
   ControlApp      control(kInst, ControlParams{});   // DrivingFG = Active
+  localization.Start();   // RUNNING: subscribe SensorService (deferred from INIT)
 
   svc::ControlServiceProxy actuator(svc::ControlServiceProxy::FindService(kInst).front());
   ControlCommand cmd{};
