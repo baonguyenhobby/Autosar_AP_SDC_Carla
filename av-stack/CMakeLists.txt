@@ -41,6 +41,12 @@ target_include_directories(test_ap_integration PRIVATE ${AV_INCLUDES})
 target_link_libraries(test_ap_integration av_cores)
 add_test(NAME test_ap_integration COMMAND test_ap_integration)
 
+# Tests check results with assert(); keep it active even in Release (which adds -DNDEBUG),
+# otherwise a broken pipeline would still report PASS.
+foreach(t test_soa_pipeline test_ap_integration)
+  target_compile_options(${t} PRIVATE -UNDEBUG)
+endforeach()
+
 # AP target: AAs on ara::com (SOME/IP); gateway = ROS 2 (lwrcl/CycloneDDS) <-> ara::com bridge.
 if(AP_BACKEND STREQUAL "adaptive-autosar")
   message(STATUS "AP target: AAs on ara::com/SOME/IP; gateway = ROS2/lwrcl <-> ara::com bridge")

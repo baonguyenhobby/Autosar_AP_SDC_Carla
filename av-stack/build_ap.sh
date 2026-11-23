@@ -22,6 +22,6 @@ case "$BACKEND" in
     echo "usage: $0 [host|adaptive-autosar]"; exit 1 ;;
 esac
 
-cmake --build "$BUILD_DIR" -j"$(nproc)"
+cmake --build "$BUILD_DIR" -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu)"
 echo "--- ctest ---"
 ctest --test-dir "$BUILD_DIR" --output-on-failure
