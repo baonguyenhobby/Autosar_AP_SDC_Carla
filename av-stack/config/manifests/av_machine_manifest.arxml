@@ -31,7 +31,7 @@
                  Init  : run the self-terminating *_init Processes (ctor / one-time setup).
                  Running: run the *_app Processes; SM enters Running only after all *_init
                           Processes have reached the Terminated ProcessState.
-                 SafeStop: run safe_stop_app.
+                 SafeStop: run safe_stop_app; the gateway stays up to carry its brake command to CARLA.
                  NOTE: AUTOSAR standardizes an 'Off' initial mode (TPS_MANI_03195) and a
                  'Verify' mode (constr_10023); omitted here to match the requested 3-mode set. -->
             <MODE-DECLARATION-GROUP>

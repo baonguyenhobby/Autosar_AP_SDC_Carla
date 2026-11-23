@@ -15,7 +15,9 @@
                             the Terminated ProcessState (barrier enforced by the DrivingFG
                             state machine, NOT by an ExecutionDependency, which constr_1689
                             forbids across two Function Group States).
-       DrivingFG.SafeStop-> safe_stop_app runs.
+       DrivingFG.SafeStop-> safe_stop_app runs (standstill brake), and the gateway keeps running
+                            (its phase=run config covers Running AND SafeStop): it is the only
+                            ControlService consumer, so without it the brake never reaches CARLA.
 
      Naming note: R24-11 (Table 8.3) names this meta-class StateDependentStartupConfig; the
      tag below keeps the project's existing MODE-DEPENDENT-STARTUP-CONFIG spelling.
@@ -72,8 +74,16 @@
                     <TERMINATION-BEHAVIOR>PROCESS-IS-SELF-TERMINATING</TERMINATION-BEHAVIOR>
                   </STARTUP-CONFIG>
                 </MODE-DEPENDENT-STARTUP-CONFIG>
+                <!-- The run config covers SafeStop as well as Running. safe_stop_app's brake
+                     command reaches CARLA only through the gateway (its sole ControlService
+                     consumer), so the gateway must stay up in SafeStop. One config referencing
+                     both states also tells EM to keep the Process running across
+                     Running -> SafeStop instead of restarting it. -->
                 <MODE-DEPENDENT-STARTUP-CONFIG>
-                  <FUNCTION-GROUP-STATE-IREF><MODE-DECLARATION-REF DEST="MODE-DECLARATION">/av/Machine/DrivingFG/Running</MODE-DECLARATION-REF></FUNCTION-GROUP-STATE-IREF>
+                  <FUNCTION-GROUP-STATE-IREFS>
+                    <FUNCTION-GROUP-STATE-IREF><MODE-DECLARATION-REF DEST="MODE-DECLARATION">/av/Machine/DrivingFG/Running</MODE-DECLARATION-REF></FUNCTION-GROUP-STATE-IREF>
+                    <FUNCTION-GROUP-STATE-IREF><MODE-DECLARATION-REF DEST="MODE-DECLARATION">/av/Machine/DrivingFG/SafeStop</MODE-DECLARATION-REF></FUNCTION-GROUP-STATE-IREF>
+                  </FUNCTION-GROUP-STATE-IREFS>
                   <STARTUP-CONFIG>
                     <PROCESS-ARGUMENTS><PROCESS-ARGUMENT><ARGUMENT>--phase=run</ARGUMENT></PROCESS-ARGUMENT></PROCESS-ARGUMENTS>
                     <TERMINATION-BEHAVIOR>PROCESS-IS-NOT-SELF-TERMINATING</TERMINATION-BEHAVIOR>
